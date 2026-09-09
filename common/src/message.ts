@@ -533,6 +533,7 @@ export interface AnkiUiBridgeExportedMessage extends Message {
 
 export interface VideoDataUiBridgeConfirmMessage extends Message {
     readonly command: 'confirm';
+    readonly requestId?: string;
     readonly data: ConfirmedVideoDataSubtitleTrack[];
     readonly shouldRememberTrackChoices: boolean;
     readonly syncWithAsbplayerId?: string;
@@ -540,7 +541,13 @@ export interface VideoDataUiBridgeConfirmMessage extends Message {
 
 export interface VideoDataUiBridgeOpenFileMessage extends Message {
     readonly command: 'openFile';
+    readonly requestId?: string;
     readonly subtitles: SerializedSubtitleFile[];
+}
+
+export interface VideoDataUiBridgeCancelMessage extends Message {
+    readonly command: 'cancel';
+    readonly requestId?: string;
 }
 
 export interface VideoDataUiBridgeSetOnlineSubtitleSourceConfigMessage extends Message {

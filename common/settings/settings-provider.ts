@@ -264,6 +264,7 @@ export const defaultSettings: AsbplayerSettings = {
         iwanttfc: {},
         svtplay: {},
         urplay: {},
+        tiktok: {},
         archive: {},
     },
     webSocketClientEnabled: false,

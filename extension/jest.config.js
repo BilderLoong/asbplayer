@@ -1,7 +1,10 @@
 export default {
     verbose: true,
     transform: {
-        '^.+\\.ts?$': 'ts-jest',
+        '^.+\\.ts?$': '<rootDir>/jest-transform.cjs',
     },
     testEnvironment: 'jsdom',
+    moduleNameMapper: {
+        '^@/(.*)$': '<rootDir>/src/$1',
+    },
 };

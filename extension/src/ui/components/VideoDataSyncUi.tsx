@@ -1,6 +1,6 @@
 import CssBaseline from '@mui/material/CssBaseline';
 import ThemeProvider from '@mui/material/styles/ThemeProvider';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 
 import VideoDataSyncDialog, {
@@ -14,6 +14,7 @@ import {
     SerializedSubtitleFile,
     UpdateStateMessage,
     VideoDataUiBridgeConfirmMessage,
+    VideoDataUiBridgeCancelMessage,
     VideoDataUiBridgeOpenFileMessage,
     VideoDataUiBridgeSetOnlineSubtitleSourceConfigMessage,
     VideoDataUiModel,
@@ -39,6 +40,8 @@ export default function VideoDataSyncUi({ bridge }: Props) {
     const [suggestedName, setSuggestedName] = useState<string>('');
     const [defaultCheckboxState, setDefaultCheckboxState] = useState<boolean>(false);
     const [openReason, setOpenReason] = useState<VideoDataUiOpenReason>(VideoDataUiOpenReason.userRequested);
+    const [requestId, setRequestId] = useState<string>();
+    const requestIdRef = useRef<string | undefined>(undefined);
     const [openedFromAsbplayerId, setOpenedFromAsbplayerId] = useState<string>('');
     const [error, setError] = useState<string>('');
     const [themeType, setThemeType] = useState<string>();
@@ -83,11 +86,20 @@ export default function VideoDataSyncUi({ bridge }: Props) {
         bridge.sendMessageFromServer({ command: 'openSettings' });
     }, [bridge]);
     const handleCancel = useCallback(() => {
+        if (requestIdRef.current !== requestId) {
+            return;
+        }
+
         closeSubtitleTrackSelector();
-        bridge.sendMessageFromServer({ command: 'cancel' });
-    }, [bridge, closeSubtitleTrackSelector]);
+        const message: VideoDataUiBridgeCancelMessage = { command: 'cancel', requestId };
+        bridge.sendMessageFromServer(message);
+    }, [bridge, closeSubtitleTrackSelector, requestId]);
     const handleConfirm = useCallback(
         (data: ConfirmedVideoDataSubtitleTrack[], shouldRememberTrackChoices: boolean) => {
+            if (requestIdRef.current !== requestId) {
+                return;
+            }
+
             closeSubtitleTrackSelector();
 
             // Create blob URLs for content script to consume and track them so we can revoke later.
@@ -102,13 +114,14 @@ export default function VideoDataSyncUi({ bridge }: Props) {
 
             const message: VideoDataUiBridgeConfirmMessage = {
                 command: 'confirm',
+                requestId,
                 data,
                 shouldRememberTrackChoices,
                 syncWithAsbplayerId: openedFromAsbplayerId.length > 0 ? openedFromAsbplayerId : undefined,
             };
             bridge.sendMessageFromServer(message);
         },
-        [bridge, closeSubtitleTrackSelector, openedFromAsbplayerId]
+        [bridge, closeSubtitleTrackSelector, openedFromAsbplayerId, requestId]
     );
 
     useEffect(() => {
@@ -118,6 +131,15 @@ export default function VideoDataSyncUi({ bridge }: Props) {
             }
 
             const model = (message as UpdateStateMessage).state as VideoDataUiModel;
+
+            if (Object.prototype.hasOwnProperty.call(model, 'requestId')) {
+                const requestChanged = requestIdRef.current !== model.requestId;
+                requestIdRef.current = model.requestId;
+                setRequestId(model.requestId);
+                if (requestChanged) {
+                    setSubtitleTrackSelectorDisabled(false);
+                }
+            }
 
             if (model.open !== undefined) {
                 if (model.open) {
@@ -232,6 +254,10 @@ export default function VideoDataSyncUi({ bridge }: Props) {
 
     const handleOpenFiles = useCallback(
         async (files: FileWithId[]) => {
+            if (requestIdRef.current !== requestId) {
+                return;
+            }
+
             setSubtitleTrackSelectorDisabled(true);
 
             try {
@@ -247,14 +273,20 @@ export default function VideoDataSyncUi({ bridge }: Props) {
                     });
                 }
 
+                if (requestIdRef.current !== requestId) {
+                    return;
+                }
+
                 closeSubtitleTrackSelector();
-                const message: VideoDataUiBridgeOpenFileMessage = { command: 'openFile', subtitles };
+                const message: VideoDataUiBridgeOpenFileMessage = { command: 'openFile', requestId, subtitles };
                 bridge.sendMessageFromServer(message);
             } finally {
-                setSubtitleTrackSelectorDisabled(false);
+                if (requestIdRef.current === requestId) {
+                    setSubtitleTrackSelectorDisabled(false);
+                }
             }
         },
-        [bridge, setSubtitleTrackSelectorDisabled, closeSubtitleTrackSelector]
+        [bridge, setSubtitleTrackSelectorDisabled, closeSubtitleTrackSelector, requestId]
     );
 
     const handleSetActiveProfile = useCallback(

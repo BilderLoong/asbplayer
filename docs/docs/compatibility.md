@@ -32,6 +32,7 @@ sidebar_position: 7
 | ----------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
 | Netflix                 |                                                                                            ✓                                                                                             |
 | YouTube                 |                                                                                            ✓                                                                                             |
+| TikTok                  |                                      Desktop Chromium: supplied captions on recorded videos in direct pages and the home feed. See the notes below.                                      |
 | Disney Plus             |                                             Seeking/timing is completely broken ([issue](https://github.com/asbplayer/asbplayer/issues/576))                                             |
 | Hulu                    |                                                                                            ✓                                                                                             |
 | Hulu JP                 |                                                                                            ✓                                                                                             |
@@ -51,3 +52,9 @@ sidebar_position: 7
 | Comprehensible Japanese |                                                                                            ✓                                                                                             |
 | SVT Play                |                                                                                            ✓                                                                                             |
 | UR Play                 |                                                                                            ✓                                                                                             |
+
+#### TikTok
+
+Select a caption track with asbplayer's subtitle picker. The existing automatic-loading setting, remembered language choices, subtitle appearance, and subtitle-navigation shortcuts also apply. Captions follow the selected video, including in fullscreen.
+
+Only timed captions supplied by TikTok are available. Videos without caption tracks cannot provide detected subtitles. asbplayer does not generate captions or change TikTok's own caption display. This integration covers subtitle display and navigation on desktop Chromium. LIVE, photo posts, third-party embeds, Firefox, and mobile browsers are outside this support scope.

@@ -865,6 +865,7 @@ export interface PageSettings {
     iwanttfc: Page;
     svtplay: Page;
     urplay: Page;
+    tiktok: Page;
     archive: Page;
 }
 

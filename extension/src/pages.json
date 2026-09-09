@@ -228,6 +228,15 @@
             }
         },
         {
+            "key": "tiktok",
+            "host": "www\\.tiktok\\.com",
+            "pageScript": "tiktok-page.js",
+            "syncAllowedAtPath": ".*",
+            "autoSync": {
+                "enabled": true
+            }
+        },
+        {
             "key": "archive",
             "host": "archive\\.org",
             "searchShadowRootsForVideoElements": true

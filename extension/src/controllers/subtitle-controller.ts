@@ -210,7 +210,10 @@ export default class SubtitleController {
 
     reset() {
         this.subtitles = [];
+        this.showingSubtitles = [];
         this.subtitleFileNames = undefined;
+        this.bottomSubtitlesElementOverlay.hide();
+        this.topSubtitlesElementOverlay.hide();
         this.cacheHtml();
         this.subtitleAnnotations.reset();
         this.seekableSubtitleCollection.setSubtitles([]);

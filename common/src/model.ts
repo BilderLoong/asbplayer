@@ -212,6 +212,9 @@ export interface VideoData {
     basename: string;
     error?: string;
     subtitles?: VideoDataSubtitleTrack[];
+    requestId?: string;
+    videoSrc?: string;
+    videoId?: string;
 }
 
 export enum VideoDataUiOpenReason {
@@ -227,6 +230,7 @@ export interface VideoDataUiSettings {
 }
 
 export interface VideoDataUiModel {
+    requestId?: string;
     open?: boolean;
     isLoading?: boolean;
     suggestedName?: string;

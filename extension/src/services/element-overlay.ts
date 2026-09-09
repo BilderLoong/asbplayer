@@ -265,6 +265,16 @@ export class CachingElementOverlay implements ElementOverlay {
         const rootNode: ShadowRoot | Document =
             targetElementRootNode instanceof ShadowRoot ? targetElementRootNode : document;
 
+        const fullscreenElement = document.fullscreenElement;
+        if (
+            fullscreenElement instanceof HTMLElement &&
+            fullscreenElement.contains(this.targetElement) &&
+            fullscreenElement.getBoundingClientRect().height > 0 &&
+            this._clickable(rootNode, fullscreenElement, testNode)
+        ) {
+            return fullscreenElement;
+        }
+
         let chosen: HTMLElement | undefined = undefined;
 
         do {

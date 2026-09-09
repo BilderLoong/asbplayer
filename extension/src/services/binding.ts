@@ -107,6 +107,33 @@ document.dispatchEvent(new CustomEvent('asbplayer-query-netflix'));
 
 const youtube = /(m|www)\.youtube\.com/.test(window.location.host);
 const disneyPlus = /www\.disneyplus\..+/.test(window.location.host);
+const tiktok = /(^|\.)tiktok\.com$/.test(window.location.host);
+
+interface TikTokVideoContext {
+    readonly videoSrc: string;
+    readonly videoId: string;
+}
+
+const tiktokVideoContextFromEvent = (event: Event): TikTokVideoContext | undefined => {
+    if (!(event instanceof CustomEvent)) {
+        return undefined;
+    }
+
+    const detail = event.detail;
+    if (detail === null || typeof detail !== 'object' || Array.isArray(detail)) {
+        return undefined;
+    }
+
+    const record = detail as Record<string, unknown>;
+    if (typeof record.videoSrc !== 'string' || record.videoSrc.length === 0) {
+        return undefined;
+    }
+    if (typeof record.videoId !== 'string' || record.videoId.length === 0) {
+        return undefined;
+    }
+
+    return { videoSrc: record.videoSrc, videoId: record.videoId };
+};
 
 enum RecordingState {
     requested,
@@ -198,6 +225,7 @@ export default class Binding {
     private seekedListener?: EventListener;
     private playbackRateListener?: EventListener;
     private videoChangeListener?: EventListener;
+    private tiktokVideoContextListener?: EventListener;
     private canPlayListener?: EventListener;
     private mouseMoveListener?: (event: MouseEvent) => void;
     private listener?: (
@@ -207,6 +235,8 @@ export default class Binding {
     ) => void;
     private heartbeatInterval?: ReturnType<typeof setInterval>;
     private _registeredVideoSrc: string;
+    private _tiktokVideoId?: string;
+    private _tiktokContextActive?: boolean;
 
     private disneyPlusSeekedListener?: EventListener;
     private disneyPlusContentTimeMs: number | undefined;
@@ -547,7 +577,12 @@ export default class Binding {
         this._notifyReady();
         this._subscribe();
         void this._refreshSettings().then(() => {
-            void this.videoDataSyncController.requestSubtitles();
+            if (
+                (!tiktok || this._tiktokContextActive !== true) &&
+                (!tiktok || this._tiktokVideoId !== undefined || document.querySelectorAll('video').length === 1)
+            ) {
+                void this.videoDataSyncController.requestSubtitles(this._tiktokVideoId);
+            }
         });
         this.subtitleController.bind();
         this.dragController.bind(this);
@@ -721,15 +756,59 @@ export default class Binding {
         this.subtitleController.onMouseOut = (mouseEvent: MouseEvent) => this.hoveredToken.handleMouseOut(mouseEvent);
 
         if (this.hasPageScript) {
+            this.tiktokVideoContextListener = (event: Event) => {
+                const context = tiktokVideoContextFromEvent(event);
+                if (context === undefined) {
+                    return;
+                }
+
+                const currentVideoSrc = this.video.src || this.video.currentSrc;
+                if (context.videoSrc !== currentVideoSrc && context.videoSrc !== this._registeredVideoSrc) {
+                    this._tiktokContextActive = false;
+                    this._tiktokVideoId = undefined;
+                    this.videoDataSyncController.invalidatePendingRequest(true);
+                    this._resetSubtitles();
+                    this.keyBindings.unbind();
+                    return;
+                }
+
+                const sameContext =
+                    this._tiktokContextActive === true &&
+                    this._tiktokVideoId === context.videoId &&
+                    this._registeredVideoSrc === context.videoSrc;
+                if (sameContext) {
+                    return;
+                }
+
+                this._tiktokContextActive = true;
+                this._updateRegisteredVideoSrc(context.videoSrc);
+                this.keyBindings.bind(this);
+
+                if (this._tiktokVideoId === context.videoId) {
+                    return;
+                }
+
+                this._tiktokVideoId = context.videoId;
+                this.videoDataSyncController.invalidatePendingRequest();
+                this._resetSubtitles();
+                void this.videoDataSyncController.requestSubtitles(context.videoId, true);
+            };
+            document.addEventListener('asbplayer-tiktok-video-context', this.tiktokVideoContextListener, false);
+            document.dispatchEvent(new CustomEvent('asbplayer-get-tiktok-video-context'));
+
             const debouncedChangeListener = debounced(
                 () => {
-                    void this.videoDataSyncController.requestSubtitles();
                     this._resetSubtitles();
+                    void this.videoDataSyncController.requestSubtitles(this._tiktokVideoId);
                 },
                 disneyPlus ? 1000 : 0
             );
             this.videoChangeListener = () => {
                 this._updateRegisteredVideoSrc(this.video.src || this._fallbackVideoSrc);
+
+                if (tiktok && this._tiktokVideoId === undefined) {
+                    return;
+                }
 
                 // Player events (e.g. Hulu blob URL rotation) can fire loadedmetadata
                 // without an actual video change. Skip refresh when the picker is open
@@ -1229,6 +1308,9 @@ export default class Binding {
         );
         this.postMinePlayback = currentSettings.postMiningPlaybackState;
         this.keyBindings.setKeyBindSet(this, currentSettings.keyBindSet);
+        if (this._tiktokContextActive === false) {
+            this.keyBindings.unbind();
+        }
 
         if (currentSettings.streamingSubsDragAndDrop) {
             this.dragController.bind(this);
@@ -1284,6 +1366,11 @@ export default class Binding {
             this.videoChangeListener = undefined;
         }
 
+        if (this.tiktokVideoContextListener) {
+            document.removeEventListener('asbplayer-tiktok-video-context', this.tiktokVideoContextListener, false);
+            this.tiktokVideoContextListener = undefined;
+        }
+
         if (this.mouseMoveListener) {
             document.removeEventListener('mousemove', this.mouseMoveListener);
             this.mouseMoveListener = undefined;
@@ -1324,6 +1411,8 @@ export default class Binding {
 
         this._notifyVideoDisappeared(this._registeredVideoSrc);
         this._registeredVideoSrc = '';
+        this._tiktokVideoId = undefined;
+        this._tiktokContextActive = undefined;
         this._lastSyncedLocation = undefined;
     }
 
@@ -1681,7 +1770,12 @@ export default class Binding {
         return cropAndResize(maxWidth, maxHeight, rect, tabImageDataUrl);
     }
 
-    async loadSubtitles(files: File[], flatten: boolean, syncWithAsbplayerId?: string) {
+    async loadSubtitles(
+        files: File[],
+        flatten: boolean,
+        syncWithAsbplayerId?: string,
+        shouldApply: () => boolean = () => true
+    ) {
         const {
             streamingSubtitleListPreference,
             subtitleRegexFilter,
@@ -1700,20 +1794,29 @@ export default class Binding {
             'convertNetflixRuby',
         ]);
         const syncWithAsbplayerTab = async (withSyncedAsbplayerOnly: boolean, withAsbplayerId: string | undefined) => {
+            if (!shouldApply()) {
+                return;
+            }
+
+            const serializedFiles = await Promise.all(
+                files.map(async (f) => {
+                    const base64 = bufferToBase64(await f.arrayBuffer());
+
+                    return {
+                        name: f.name,
+                        base64: base64,
+                    };
+                })
+            );
+            if (!shouldApply()) {
+                return;
+            }
+
             const syncMessage: VideoToExtensionCommand<ExtensionSyncMessage> = {
                 sender: 'asbplayer-video',
                 message: {
                     command: 'sync',
-                    subtitles: await Promise.all(
-                        files.map(async (f) => {
-                            const base64 = bufferToBase64(await f.arrayBuffer());
-
-                            return {
-                                name: f.name,
-                                base64: base64,
-                            };
-                        })
-                    ),
+                    subtitles: serializedFiles,
                     withSyncedAsbplayerOnly,
                     withAsbplayerId,
                 },
@@ -1734,6 +1837,9 @@ export default class Binding {
                 const userOffset = rememberSubtitleOffset ? lastSubtitleOffset : 0;
                 const offset = userOffset;
                 const subtitles = await reader.subtitles(files, flatten);
+                if (!shouldApply()) {
+                    return;
+                }
 
                 // Order is important: sync with tab first, then update our subtitle controller
                 // since the subtitle controller may send coloring messages as soon as it gets
@@ -1748,6 +1854,10 @@ export default class Binding {
                     await syncWithAsbplayerTab(withSyncedAsbplayerOnly, syncWithAsbplayerId);
                 } catch (error) {
                     console.error('Failed to sync with asbplayer tab when loading subtitles:', error);
+                }
+
+                if (!shouldApply()) {
+                    return;
                 }
 
                 this._updateSubtitles(
