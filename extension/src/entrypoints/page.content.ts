@@ -1,6 +1,6 @@
 import { currentPageDelegate } from '@/services/pages';
 
-const excludeGlobs = ['*://app.asbplayer.dev/*'];
+const excludeGlobs = ['*://app.asbplayer.dev/*', '*://bilderloong.github.io/asbplayer/*'];
 
 if (import.meta.env.DEV) {
     excludeGlobs.push('*://localhost:3000/*');

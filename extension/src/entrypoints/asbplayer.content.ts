@@ -31,7 +31,7 @@ import { ExtensionDictionaryStorage } from '@/services/extension-dictionary-stor
 import { ExtensionSettingsStorage } from '@/services/extension-settings-storage';
 import { ExtensionGlobalStateProvider } from '@/services/extension-global-state-provider';
 
-const matches = ['*://app.asbplayer.dev/*'];
+const matches = ['*://app.asbplayer.dev/*', '*://bilderloong.github.io/asbplayer/*'];
 
 if (import.meta.env.DEV) {
     matches.push('*://localhost/*');

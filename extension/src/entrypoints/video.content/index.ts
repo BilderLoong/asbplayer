@@ -19,7 +19,7 @@ import { isFirefoxBuild } from '@/services/build-flags';
 
 import './video.css';
 
-const excludeGlobs = ['*://app.asbplayer.dev/*'];
+const excludeGlobs = ['*://app.asbplayer.dev/*', '*://bilderloong.github.io/asbplayer/*'];
 
 if (import.meta.env.DEV) {
     excludeGlobs.push('*://localhost:3000/*');
