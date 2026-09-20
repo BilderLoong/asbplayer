@@ -2,6 +2,7 @@ import {
     areTokenizationsEqual,
     arrayEquals,
     AsyncSemaphore,
+    buildSubtitleContextHtml,
     buildSubtitleTracks,
     compareSubtitlesForDisplay,
     computeStyles,
@@ -967,4 +968,20 @@ it('sorts subtitles by track first, regardless of source index', () => {
         { track: 0, index: 1 },
         { track: 1, index: 0 },
     ]);
+});
+
+it('builds hidden context spans with text before and after the current subtitle', () => {
+    const subs = [
+        subtitle('Before text', 0, 1000, 0, 0),
+        subtitle('Current text', 1000, 2000, 0, 1),
+        subtitle('After text', 2000, 3000, 0, 2),
+    ];
+
+    const html = buildSubtitleContextHtml(1, subs);
+
+    expect(html.before).toContain('asbplayer-subtitle-context');
+    expect(html.before).toContain('Before text');
+    expect(html.after).toContain('After text');
+    expect(html.before).not.toContain('Current text');
+    expect(html.after).not.toContain('Current text');
 });

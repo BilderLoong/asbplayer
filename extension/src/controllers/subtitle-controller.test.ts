@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 import { IndexedSubtitleModel } from '@project/common';
-import { buildSubtitleContextText } from './subtitle-controller';
+import { buildSubtitleContextText } from '@project/common/util';
 
 const subtitle = (text: string, index: number): IndexedSubtitleModel => ({
     text,

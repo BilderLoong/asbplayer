@@ -1,5 +1,13 @@
 import sanitize from 'sanitize-filename';
-import { Rgb, SubtitleModel, SubtitleTrack, Token, Tokenization, TokenReading } from '../src/model';
+import {
+    IndexedSubtitleModel,
+    Rgb,
+    SubtitleModel,
+    SubtitleTrack,
+    Token,
+    Tokenization,
+    TokenReading,
+} from '../src/model';
 import { TextSubtitleSettings, TokenStatus } from '../settings/settings';
 import { Progress } from '..';
 import { TokenStatusInfo } from '../dictionary-db';
@@ -149,6 +157,28 @@ export function surroundingSubtitles(
     }
 
     return subtitles.slice(startIndex, endIndex + 1);
+}
+
+export function buildSubtitleContextText(currentSubtitleIndex: number, subtitles: IndexedSubtitleModel[]) {
+    const beforeSubtitles = subtitles.slice(0, currentSubtitleIndex);
+    const afterSubtitles = subtitles.slice(currentSubtitleIndex + 1);
+
+    const fullBeforeText = beforeSubtitles.map((s) => s.text.trim()).join(' ');
+    const fullAfterText = afterSubtitles.map((s) => s.text.trim()).join(' ');
+
+    return {
+        before: fullBeforeText.substring(fullBeforeText.length - 500),
+        after: fullAfterText.substring(0, 500),
+    };
+}
+
+export function buildSubtitleContextHtml(currentSubtitleIndex: number, subtitles: IndexedSubtitleModel[]) {
+    const { before, after } = buildSubtitleContextText(currentSubtitleIndex, subtitles);
+
+    return {
+        before: `<span class="asbplayer-subtitle-context" style="width:0;height:0;overflow:hidden;display:inline-block">${before}</span>`,
+        after: `<span class="asbplayer-subtitle-context" style="width:0;height:0;overflow:hidden;display:inline-block">${after}</span>`,
+    };
 }
 
 function indexNearTimestamp(subtitles: SubtitleModel[], timestamp: number, direction: Direction) {

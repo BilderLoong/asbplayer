@@ -1,0 +1,51 @@
+name: Deploy web player to GitHub Pages
+
+on:
+    push:
+        branches:
+            - main
+            - feature/**
+    workflow_dispatch:
+
+permissions:
+    contents: read
+    pages: write
+    id-token: write
+
+concurrency:
+    group: github-pages
+    cancel-in-progress: true
+
+jobs:
+    deploy:
+        runs-on: ubuntu-latest
+        environment:
+            name: github-pages
+            url: ${{ steps.deployment.outputs.page_url }}
+        steps:
+            - uses: actions/checkout@v3
+            - name: Use Node.js 22
+              uses: actions/setup-node@v3
+              with:
+                  node-version: 22.x
+                  cache: 'npm'
+            - run: npm install --global yarn
+            - run: yarn set version 3.2.0
+            - run: yarn install
+            - name: Compute base path
+              run: |
+                  repo_name="${GITHUB_REPOSITORY#*/}"
+                  if [ "$repo_name" = "${{ github.repository_owner }}.github.io" ]; then
+                      echo "VITE_APP_BASE_PATH=/" >> "$GITHUB_ENV"
+                  else
+                      echo "VITE_APP_BASE_PATH=/$repo_name" >> "$GITHUB_ENV"
+                  fi
+            - name: Build
+              run: yarn workspace @project/client run build
+            - name: Upload Pages artifact
+              uses: actions/upload-pages-artifact@v3
+              with:
+                  path: client/dist
+            - name: Deploy to GitHub Pages
+              id: deployment
+              uses: actions/deploy-pages@v4

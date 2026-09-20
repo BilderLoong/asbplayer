@@ -30,6 +30,7 @@ import {
 } from '@project/common/settings';
 import {
     arrayEquals,
+    buildSubtitleContextHtml,
     compareSubtitlesForDisplay,
     surroundingSubtitles,
     mockSurroundingSubtitles,
@@ -170,6 +171,7 @@ function errorMessage(element: HTMLVideoElement) {
 
 const showingSubtitleHtml = (
     subtitle: IndexedSubtitleModel,
+    subtitles: IndexedSubtitleModel[],
     videoRef: MutableRefObject<ExperimentalHTMLVideoElement | undefined>,
     subtitleStyles: string,
     subtitleClasses: string,
@@ -194,11 +196,13 @@ const showingSubtitleHtml = (
     }
     const allSubtitleClasses = subtitleClasses ? `${subtitleClasses} asbplayer-subtitles` : 'asbplayer-subtitles';
     const rendered = renderRichTextOntoSubtitles([subtitle], 'video', dictionaryTracks)?.get(subtitle.index);
-    return `<span class="${allSubtitleClasses}" style="${subtitleStyles}" data-track="${subtitle.track}">${getAnnotationsHtml(
+    const mainHtml = `<span class="${allSubtitleClasses}" style="${subtitleStyles}" data-track="${subtitle.track}">${getAnnotationsHtml(
         subtitle.text,
         rendered?.richText,
         rendered?.richTextOnHover
     )}</span>`;
+    const { before, after } = buildSubtitleContextHtml(subtitle.index, subtitles);
+    return [before, mainHtml, after].join(' ');
 };
 
 interface CachedShowingSubtitleProps {
@@ -1694,13 +1698,14 @@ export default function VideoPlayer({
         (subtitle: IndexedSubtitleModel) =>
             showingSubtitleHtml(
                 subtitle,
+                subtitles,
                 videoRef,
                 trackStyles[subtitle.track]?.styleString ?? trackStyles[0]?.styleString ?? '',
                 trackStyles[subtitle.track]?.classes ?? trackStyles[0]?.classes ?? '',
                 subtitleSettings.imageBasedSubtitleScaleFactor,
                 settings.dictionaryTracks
             ),
-        [trackStyles, settings.dictionaryTracks, subtitleSettings.imageBasedSubtitleScaleFactor]
+        [subtitles, trackStyles, settings.dictionaryTracks, subtitleSettings.imageBasedSubtitleScaleFactor]
     );
 
     const { getSubtitleDomCache, refreshSubtitleDomCacheForSubtitles, updateSubtitleDomCache } = useSubtitleDomCache(
