@@ -172,13 +172,71 @@ export function buildSubtitleContextText(currentSubtitleIndex: number, subtitles
     };
 }
 
-export function buildSubtitleContextHtml(currentSubtitleIndex: number, subtitles: IndexedSubtitleModel[]) {
-    const { before, after } = buildSubtitleContextText(currentSubtitleIndex, subtitles);
+const subtitleContextClassName = 'asbplayer-subtitle-context';
 
-    return {
-        before: `<span class="asbplayer-subtitle-context" style="width:0;height:0;overflow:hidden;display:inline-block">${before}</span>`,
-        after: `<span class="asbplayer-subtitle-context" style="width:0;height:0;overflow:hidden;display:inline-block">${after}</span>`,
-    };
+function subtitleContextSpan(text: string): HTMLElement {
+    const span = document.createElement('span');
+    span.className = subtitleContextClassName;
+    span.style.width = '0';
+    span.style.height = '0';
+    span.style.overflow = 'hidden';
+    span.style.display = 'inline-block';
+    span.textContent = text;
+    return span;
+}
+
+export function showSubtitleContextOnHover(event: MouseEvent, subtitles: IndexedSubtitleModel[]): void {
+    if (!(event.target instanceof Element)) {
+        return;
+    }
+
+    const indexSpan = event.target.closest('[data-index]');
+    const parent = indexSpan?.parentElement;
+
+    if (!indexSpan || !parent || parent.querySelector('.' + subtitleContextClassName) !== null) {
+        return;
+    }
+
+    if (event.relatedTarget instanceof Node && parent.contains(event.relatedTarget)) {
+        return;
+    }
+
+    const index = Number(indexSpan.getAttribute('data-index'));
+
+    if (Number.isNaN(index)) {
+        return;
+    }
+
+    const { before, after } = buildSubtitleContextText(index, subtitles);
+
+    if (before) {
+        parent.insertBefore(subtitleContextSpan(before), indexSpan);
+    }
+
+    if (after) {
+        parent.insertBefore(subtitleContextSpan(after), indexSpan.nextSibling);
+    }
+}
+
+export function hideSubtitleContextOnUnhover(event: MouseEvent): void {
+    if (!(event.target instanceof Element)) {
+        return;
+    }
+
+    const indexSpan = event.target.closest('[data-index]');
+    const parent = indexSpan?.parentElement;
+
+    if (!indexSpan || !parent) {
+        return;
+    }
+
+    if (event.relatedTarget instanceof Node && parent.contains(event.relatedTarget)) {
+        return;
+    }
+
+    for (const span of parent.querySelectorAll('.' + subtitleContextClassName)) {
+        span.remove();
+    }
 }
 
 function indexNearTimestamp(subtitles: SubtitleModel[], timestamp: number, direction: Direction) {

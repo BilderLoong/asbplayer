@@ -35,9 +35,10 @@ import {
 } from '@project/common/annotations';
 import {
     arrayEquals,
-    buildSubtitleContextHtml,
     compareSubtitlesForDisplay,
     computeStyleString,
+    hideSubtitleContextOnUnhover,
+    showSubtitleContextOnHover,
     surroundingSubtitles,
 } from '@project/common/util';
 import i18n from 'i18next';
@@ -388,8 +389,14 @@ export default class SubtitleController {
             fullscreenContentClassName: 'asbplayer-fullscreen-subtitles',
             offsetAnchor: OffsetAnchor.bottom,
             contentWidthPercentage: -1,
-            onMouseOver: (event: MouseEvent) => this.onMouseOver?.(event),
-            onMouseOut: (event: MouseEvent) => this.onMouseOut?.(event),
+            onMouseOver: (event: MouseEvent) => {
+                showSubtitleContextOnHover(event, this.subtitles);
+                this.onMouseOver?.(event);
+            },
+            onMouseOut: (event: MouseEvent) => {
+                hideSubtitleContextOnUnhover(event);
+                this.onMouseOut?.(event);
+            },
         };
         const topSubtitleOverlayParams: ElementOverlayParams = {
             targetElement: this.context.video,
@@ -399,8 +406,14 @@ export default class SubtitleController {
             fullscreenContentClassName: 'asbplayer-fullscreen-subtitles',
             offsetAnchor: OffsetAnchor.top,
             contentWidthPercentage: -1,
-            onMouseOver: (event: MouseEvent) => this.onMouseOver?.(event),
-            onMouseOut: (event: MouseEvent) => this.onMouseOut?.(event),
+            onMouseOver: (event: MouseEvent) => {
+                showSubtitleContextOnHover(event, this.subtitles);
+                this.onMouseOver?.(event);
+            },
+            onMouseOut: (event: MouseEvent) => {
+                hideSubtitleContextOnUnhover(event);
+                this.onMouseOut?.(event);
+            },
         };
         const notificationOverlayParams: ElementOverlayParams =
             this._getSubtitleTrackAlignment(0) === 'bottom'
@@ -634,17 +647,13 @@ export default class SubtitleController {
                             </div>
                         `;
                     } else {
-                        const { before, after } = buildSubtitleContextHtml(subtitle.index, this.subtitles);
-                        return [
-                            before,
-                            this._buildTextHtml(
-                                subtitle.text,
-                                subtitle.track,
-                                rendered?.richText,
-                                rendered?.richTextOnHover
-                            ).trim(),
-                            after,
-                        ].join(' ');
+                        return this._buildTextHtml(
+                            subtitle.text,
+                            subtitle.track,
+                            rendered?.richText,
+                            rendered?.richTextOnHover,
+                            subtitle.index
+                        );
                     }
                 },
                 key: String(subtitle.index),
@@ -652,10 +661,11 @@ export default class SubtitleController {
         });
     }
 
-    private _buildTextHtml(text: string, track?: number, richText?: string, richTextOnHover?: string) {
-        return `<span data-track="${track ?? 0}" class="${this._subtitleClasses(track)}" style="${this._subtitleStyles(
+    private _buildTextHtml(text: string, track?: number, richText?: string, richTextOnHover?: string, index?: number) {
+        const dataIndex = index === undefined ? '' : ' data-index="' + index + '"';
+        return `<span data-track="${track ?? 0}"${dataIndex} class="${this._subtitleClasses(
             track
-        )}">${getAnnotationsHtml(text, richText, richTextOnHover)}</span>`;
+        )}" style="${this._subtitleStyles(track)}">${getAnnotationsHtml(text, richText, richTextOnHover)}</span>`;
     }
 
     unbind() {

@@ -30,8 +30,9 @@ import {
 } from '@project/common/settings';
 import {
     arrayEquals,
-    buildSubtitleContextHtml,
     compareSubtitlesForDisplay,
+    hideSubtitleContextOnUnhover,
+    showSubtitleContextOnHover,
     surroundingSubtitles,
     mockSurroundingSubtitles,
     seekWithNudge,
@@ -171,7 +172,6 @@ function errorMessage(element: HTMLVideoElement) {
 
 const showingSubtitleHtml = (
     subtitle: IndexedSubtitleModel,
-    subtitles: IndexedSubtitleModel[],
     videoRef: MutableRefObject<ExperimentalHTMLVideoElement | undefined>,
     subtitleStyles: string,
     subtitleClasses: string,
@@ -196,13 +196,11 @@ const showingSubtitleHtml = (
     }
     const allSubtitleClasses = subtitleClasses ? `${subtitleClasses} asbplayer-subtitles` : 'asbplayer-subtitles';
     const rendered = renderRichTextOntoSubtitles([subtitle], 'video', dictionaryTracks)?.get(subtitle.index);
-    const mainHtml = `<span class="${allSubtitleClasses}" style="${subtitleStyles}" data-track="${subtitle.track}">${getAnnotationsHtml(
+    return `<span class="${allSubtitleClasses}" style="${subtitleStyles}" data-track="${subtitle.track}" data-index="${subtitle.index}">${getAnnotationsHtml(
         subtitle.text,
         rendered?.richText,
         rendered?.richTextOnHover
     )}</span>`;
-    const { before, after } = buildSubtitleContextHtml(subtitle.index, subtitles);
-    return [before, mainHtml, after].join(' ');
 };
 
 interface CachedShowingSubtitleProps {
@@ -1698,14 +1696,13 @@ export default function VideoPlayer({
         (subtitle: IndexedSubtitleModel) =>
             showingSubtitleHtml(
                 subtitle,
-                subtitles,
                 videoRef,
                 trackStyles[subtitle.track]?.styleString ?? trackStyles[0]?.styleString ?? '',
                 trackStyles[subtitle.track]?.classes ?? trackStyles[0]?.classes ?? '',
                 subtitleSettings.imageBasedSubtitleScaleFactor,
                 settings.dictionaryTracks
             ),
-        [subtitles, trackStyles, settings.dictionaryTracks, subtitleSettings.imageBasedSubtitleScaleFactor]
+        [trackStyles, settings.dictionaryTracks, subtitleSettings.imageBasedSubtitleScaleFactor]
     );
 
     const { getSubtitleDomCache, refreshSubtitleDomCacheForSubtitles, updateSubtitleDomCache } = useSubtitleDomCache(
@@ -1744,17 +1741,21 @@ export default function VideoPlayer({
 
     const handleSubtitleMouseOver = useCallback(
         (e: React.MouseEvent) => {
+            showSubtitleContextOnHover(e.nativeEvent, subtitles);
             if (miscSettings.pauseOnHoverMode !== PauseOnHoverMode.disabled && videoRef.current?.paused === false) {
                 playerChannel.pause();
                 isPausedDueToHoverRef.current = true;
             }
             hoveredToken.handleMouseOver(e.nativeEvent);
         },
-        [hoveredToken, miscSettings.pauseOnHoverMode, playerChannel]
+        [hoveredToken, miscSettings.pauseOnHoverMode, playerChannel, subtitles]
     );
 
     const handleSubtitleMouseOut = useCallback(
-        (e: React.MouseEvent) => hoveredToken.handleMouseOut(e.nativeEvent),
+        (e: React.MouseEvent) => {
+            hideSubtitleContextOnUnhover(e.nativeEvent);
+            hoveredToken.handleMouseOut(e.nativeEvent);
+        },
         [hoveredToken]
     );
 
