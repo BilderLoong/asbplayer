@@ -990,11 +990,13 @@ it('adds hidden context spans around the hovered subtitle', () => {
     Object.defineProperty(hoverEvent, 'target', { value: child });
     showSubtitleContextOnHover(hoverEvent, subs);
 
-    const spans = parent.querySelectorAll('span.asbplayer-subtitle-context');
+    const spans = mainSpan.querySelectorAll('span.asbplayer-subtitle-context');
     expect(spans.length).toBe(2);
     expect(spans[0].textContent).toBe('Before text');
     expect(spans[1].textContent).toBe('After text');
     expect((spans[0] as HTMLElement).style.display).toBe('inline-block');
+    expect(mainSpan.firstElementChild).toBe(spans[0]);
+    expect(mainSpan.lastElementChild).toBe(spans[1]);
 });
 
 it('does not duplicate context spans while the pointer stays inside', () => {
@@ -1015,7 +1017,7 @@ it('does not duplicate context spans while the pointer stays inside', () => {
     Object.defineProperty(reenterEvent, 'target', { value: inner });
     showSubtitleContextOnHover(reenterEvent, subs);
 
-    expect(parent.querySelectorAll('span.asbplayer-subtitle-context').length).toBe(2);
+    expect(mainSpan.querySelectorAll('span.asbplayer-subtitle-context').length).toBe(2);
 });
 
 it('keeps context spans while moving inside and removes them on unhover', () => {
@@ -1032,7 +1034,7 @@ it('keeps context spans while moving inside and removes them on unhover', () => 
     const stayEvent = new MouseEvent('mouseout', { bubbles: true, relatedTarget: mainSpan });
     Object.defineProperty(stayEvent, 'target', { value: mainSpan });
     hideSubtitleContextOnUnhover(stayEvent);
-    expect(parent.querySelectorAll('span.asbplayer-subtitle-context').length).toBe(2);
+    expect(mainSpan.querySelectorAll('span.asbplayer-subtitle-context').length).toBe(2);
 
     const outside = document.createElement('div');
     document.body.appendChild(outside);
@@ -1040,7 +1042,7 @@ it('keeps context spans while moving inside and removes them on unhover', () => 
     Object.defineProperty(leaveEvent, 'target', { value: mainSpan });
     hideSubtitleContextOnUnhover(leaveEvent);
 
-    expect(parent.querySelectorAll('span.asbplayer-subtitle-context').length).toBe(0);
+    expect(mainSpan.querySelectorAll('span.asbplayer-subtitle-context').length).toBe(0);
 });
 
 it('adds no context spans when there is only one subtitle', () => {
@@ -1054,5 +1056,5 @@ it('adds no context spans when there is only one subtitle', () => {
     Object.defineProperty(hoverEvent, 'target', { value: mainSpan });
     showSubtitleContextOnHover(hoverEvent, [subtitle('Only line', 0, 1000, 0, 0)]);
 
-    expect(parent.querySelectorAll('span.asbplayer-subtitle-context').length).toBe(0);
+    expect(mainSpan.querySelectorAll('span.asbplayer-subtitle-context').length).toBe(0);
 });

@@ -187,9 +187,8 @@ function subtitleContextSpan(text: string): HTMLElement {
 
 export function addSubtitleContext(target: Element, subtitles: IndexedSubtitleModel[]): void {
     const indexSpan = target.closest('[data-index]');
-    const parent = indexSpan?.parentElement;
 
-    if (!indexSpan || !parent || parent.querySelector('.' + subtitleContextClassName) !== null) {
+    if (!indexSpan || indexSpan.querySelector('.' + subtitleContextClassName) !== null) {
         return;
     }
 
@@ -202,23 +201,22 @@ export function addSubtitleContext(target: Element, subtitles: IndexedSubtitleMo
     const { before, after } = buildSubtitleContextText(index, subtitles);
 
     if (before) {
-        parent.insertBefore(subtitleContextSpan(before), indexSpan);
+        indexSpan.insertBefore(subtitleContextSpan(before), indexSpan.firstChild);
     }
 
     if (after) {
-        parent.insertBefore(subtitleContextSpan(after), indexSpan.nextSibling);
+        indexSpan.appendChild(subtitleContextSpan(after));
     }
 }
 
 export function removeSubtitleContext(target: Element): void {
     const indexSpan = target.closest('[data-index]');
-    const parent = indexSpan?.parentElement;
 
-    if (!indexSpan || !parent) {
+    if (!indexSpan) {
         return;
     }
 
-    for (const span of parent.querySelectorAll('.' + subtitleContextClassName)) {
+    for (const span of indexSpan.querySelectorAll('.' + subtitleContextClassName)) {
         span.remove();
     }
 }
