@@ -29,6 +29,7 @@ describe('PlaybackPreferences', () => {
         expect(preferences.displaySubtitles).toBe(true);
         expect(preferences.offset).toBe(0);
         expect(preferences.subtitlePlayerWidth).toBeUndefined();
+        expect(preferences.playbackRate).toBe(1);
     });
 
     it('persists scalar playback preferences with their expected storage representation', () => {
@@ -40,6 +41,7 @@ describe('PlaybackPreferences', () => {
         preferences.displaySubtitles = false;
         preferences.subtitlePlayerWidth = 720;
         preferences.offset = -125;
+        preferences.playbackRate = 1.5;
 
         expect(preferences.volume).toBe(65);
         expect(preferences.theaterMode).toBe(true);
@@ -55,8 +57,27 @@ describe('PlaybackPreferences', () => {
                 displaySubtitles: 'false',
                 subtitlePlayerWidth: '720',
                 offset: '-125',
+                playbackRate: '1.5',
             })
         );
+    });
+
+    it('falls back to the default playback rate for invalid stored values', () => {
+        localStorage.setItem('playbackRate', 'abc');
+        const preferences = new PlaybackPreferences(makeSettings(), makeExtension() as any);
+
+        expect(preferences.playbackRate).toBe(1);
+    });
+
+    it('ignores invalid assigned playback rates', () => {
+        const preferences = new PlaybackPreferences(makeSettings(), makeExtension() as any);
+
+        preferences.playbackRate = 0;
+        expect(preferences.playbackRate).toBe(1);
+
+        preferences.playbackRate = 2;
+        preferences.playbackRate = Number.NaN;
+        expect(preferences.playbackRate).toBe(2);
     });
 
     it('ignores stored offsets when remembering is disabled', () => {

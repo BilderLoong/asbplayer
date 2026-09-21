@@ -507,13 +507,16 @@ export default function VideoPlayer({
         }
 
         playerChannel.playbackRate(video.playbackRate, false);
+        if (!playModesRef.current.has(PlayMode.fastForward)) {
+            playbackPreferences.playbackRate = video.playbackRate;
+        }
         playerChannel.currentTime(video.currentTime, false);
         forceRender({});
 
         if (!video.paused) {
             isPausedDueToHoverRef.current = false;
         }
-    }, [playerChannel]);
+    }, [playbackPreferences, playerChannel]);
 
     const onErrorRef = useRef(onError);
     onErrorRef.current = onError;
@@ -525,11 +528,13 @@ export default function VideoPlayer({
                 videoRef.current = videoElement;
 
                 if (videoElement.readyState === 4) {
+                    videoElement.playbackRate = playbackPreferences.playbackRate;
                     notifyReady(videoElement, playerChannel, setAudioTracks, setSelectedAudioTrack);
                     setVideoWidth(videoElement.videoWidth);
                     setVideoHeight(videoElement.videoHeight);
                 } else {
                     videoElement.onloadeddata = () => {
+                        videoElement.playbackRate = playbackPreferences.playbackRate;
                         notifyReady(videoElement, playerChannel, setAudioTracks, setSelectedAudioTrack);
                         setVideoWidth(videoElement.videoWidth);
                         setVideoHeight(videoElement.videoHeight);
@@ -559,7 +564,7 @@ export default function VideoPlayer({
                 }
             }
         },
-        [clock, playerChannel, updatePlayerState]
+        [clock, playbackPreferences, playerChannel, updatePlayerState]
     );
 
     function selectAudioTrack(id: string) {
