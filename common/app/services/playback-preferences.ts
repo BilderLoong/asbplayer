@@ -9,8 +9,10 @@ const displaySubtitlesKey = 'displaySubtitles';
 const hideSubtitleListKey = 'hideSubtitleList';
 const subtitlePlayerWidthKey = 'subtitlePlayerWidth';
 const playbackRateKey = 'playbackRate';
+const videoPositionsKey = 'videoPositions';
 const defaultVolume = 100;
 const defaultPlaybackRate = 1;
+const maxVideoPositions = 20;
 
 interface PlaybackPrefSettings {
     rememberSubtitleOffset: boolean;
@@ -18,6 +20,12 @@ interface PlaybackPrefSettings {
     subtitleAlignment: SubtitleAlignment;
     subtitlePositionOffset: number;
     topSubtitlePositionOffset: number;
+}
+
+interface VideoPositionEntry {
+    position: number;
+    timestamp: number;
+    seq: number;
 }
 
 export default class PlaybackPreferences {
@@ -128,6 +136,47 @@ export default class PlaybackPreferences {
     set playbackRate(rate: number) {
         if (Number.isFinite(rate) && rate > 0) {
             this._storage.set(playbackRateKey, String(rate));
+        }
+    }
+
+    getVideoPosition(videoKey: string | undefined): number | undefined {
+        if (!videoKey) {
+            return undefined;
+        }
+
+        const entry = this._videoPositions()[videoKey];
+        return typeof entry?.position === 'number' && Number.isFinite(entry.position) ? entry.position : undefined;
+    }
+
+    setVideoPosition(videoKey: string | undefined, position: number): void {
+        if (!videoKey || !Number.isFinite(position) || position <= 0) {
+            return;
+        }
+
+        const positions = this._videoPositions();
+        let maxSeq = 0;
+        for (const entry of Object.values(positions)) {
+            if (typeof entry?.seq === 'number' && entry.seq > maxSeq) {
+                maxSeq = entry.seq;
+            }
+        }
+        positions[videoKey] = { position, timestamp: Date.now(), seq: maxSeq + 1 };
+        const entries = Object.entries(positions).sort((a, b) => (b[1].seq ?? 0) - (a[1].seq ?? 0));
+        this._storage.set(videoPositionsKey, JSON.stringify(Object.fromEntries(entries.slice(0, maxVideoPositions))));
+    }
+
+    private _videoPositions(): Record<string, VideoPositionEntry> {
+        const value = this._storage.get(videoPositionsKey);
+
+        if (value === null) {
+            return {};
+        }
+
+        try {
+            const parsed = JSON.parse(value);
+            return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+        } catch {
+            return {};
         }
     }
 }

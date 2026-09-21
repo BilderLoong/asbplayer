@@ -80,6 +80,35 @@ describe('PlaybackPreferences', () => {
         expect(preferences.playbackRate).toBe(2);
     });
 
+    it('persists per-video positions', () => {
+        const preferences = new PlaybackPreferences(makeSettings(), makeExtension() as any);
+
+        expect(preferences.getVideoPosition('movie.mkv')).toBeUndefined();
+        preferences.setVideoPosition('movie.mkv', 123.5);
+        expect(preferences.getVideoPosition('movie.mkv')).toBe(123.5);
+        expect(preferences.getVideoPosition(undefined)).toBeUndefined();
+    });
+
+    it('keeps only the most recent video positions', () => {
+        const preferences = new PlaybackPreferences(makeSettings(), makeExtension() as any);
+
+        for (let i = 0; i < 25; ++i) {
+            preferences.setVideoPosition('video-' + i, i * 10);
+        }
+
+        expect(preferences.getVideoPosition('video-0')).toBeUndefined();
+        expect(preferences.getVideoPosition('video-4')).toBeUndefined();
+        expect(preferences.getVideoPosition('video-5')).toBe(50);
+        expect(preferences.getVideoPosition('video-24')).toBe(240);
+    });
+
+    it('returns no position for corrupt stored data', () => {
+        localStorage.setItem('videoPositions', 'not-json');
+        const preferences = new PlaybackPreferences(makeSettings(), makeExtension() as any);
+
+        expect(preferences.getVideoPosition('movie.mkv')).toBeUndefined();
+    });
+
     it('ignores stored offsets when remembering is disabled', () => {
         localStorage.setItem('offset', '900');
         const preferences = new PlaybackPreferences(
