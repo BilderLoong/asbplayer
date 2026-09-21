@@ -185,19 +185,11 @@ function subtitleContextSpan(text: string): HTMLElement {
     return span;
 }
 
-export function showSubtitleContextOnHover(event: MouseEvent, subtitles: IndexedSubtitleModel[]): void {
-    if (!(event.target instanceof Element)) {
-        return;
-    }
-
-    const indexSpan = event.target.closest('[data-index]');
+export function addSubtitleContext(target: Element, subtitles: IndexedSubtitleModel[]): void {
+    const indexSpan = target.closest('[data-index]');
     const parent = indexSpan?.parentElement;
 
     if (!indexSpan || !parent || parent.querySelector('.' + subtitleContextClassName) !== null) {
-        return;
-    }
-
-    if (event.relatedTarget instanceof Node && parent.contains(event.relatedTarget)) {
         return;
     }
 
@@ -218,6 +210,25 @@ export function showSubtitleContextOnHover(event: MouseEvent, subtitles: Indexed
     }
 }
 
+export function removeSubtitleContext(target: Element): void {
+    const indexSpan = target.closest('[data-index]');
+    const parent = indexSpan?.parentElement;
+
+    if (!indexSpan || !parent) {
+        return;
+    }
+
+    for (const span of parent.querySelectorAll('.' + subtitleContextClassName)) {
+        span.remove();
+    }
+}
+
+export function showSubtitleContextOnHover(event: MouseEvent, subtitles: IndexedSubtitleModel[]): void {
+    if (event.target instanceof Element) {
+        addSubtitleContext(event.target, subtitles);
+    }
+}
+
 export function hideSubtitleContextOnUnhover(event: MouseEvent): void {
     if (!(event.target instanceof Element)) {
         return;
@@ -226,17 +237,11 @@ export function hideSubtitleContextOnUnhover(event: MouseEvent): void {
     const indexSpan = event.target.closest('[data-index]');
     const parent = indexSpan?.parentElement;
 
-    if (!indexSpan || !parent) {
+    if (parent && event.relatedTarget instanceof Node && parent.contains(event.relatedTarget)) {
         return;
     }
 
-    if (event.relatedTarget instanceof Node && parent.contains(event.relatedTarget)) {
-        return;
-    }
-
-    for (const span of parent.querySelectorAll('.' + subtitleContextClassName)) {
-        span.remove();
-    }
+    removeSubtitleContext(event.target);
 }
 
 function indexNearTimestamp(subtitles: SubtitleModel[], timestamp: number, direction: Direction) {

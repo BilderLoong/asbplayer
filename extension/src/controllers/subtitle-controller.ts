@@ -35,6 +35,7 @@ import {
 } from '@project/common/annotations';
 import {
     arrayEquals,
+    addSubtitleContext,
     compareSubtitlesForDisplay,
     computeStyleString,
     hideSubtitleContextOnUnhover,
@@ -138,6 +139,7 @@ export default class SubtitleController {
     onOffsetChange?: () => Promise<void>;
     onMouseOver?: (event: MouseEvent) => void;
     onMouseOut?: (event: MouseEvent) => void;
+    private subtitlePointerPosition?: { clientX: number; clientY: number };
 
     private readonly _currentTimeMs: () => number;
 
@@ -390,10 +392,16 @@ export default class SubtitleController {
             offsetAnchor: OffsetAnchor.bottom,
             contentWidthPercentage: -1,
             onMouseOver: (event: MouseEvent) => {
+                this.subtitlePointerPosition = { clientX: event.clientX, clientY: event.clientY };
                 showSubtitleContextOnHover(event, this.subtitles);
                 this.onMouseOver?.(event);
             },
             onMouseOut: (event: MouseEvent) => {
+                const related = event.relatedTarget;
+                const container = event.currentTarget;
+                if (!(related instanceof Node) || !(container instanceof Element) || !container.contains(related)) {
+                    this.subtitlePointerPosition = undefined;
+                }
                 hideSubtitleContextOnUnhover(event);
                 this.onMouseOut?.(event);
             },
@@ -407,10 +415,16 @@ export default class SubtitleController {
             offsetAnchor: OffsetAnchor.top,
             contentWidthPercentage: -1,
             onMouseOver: (event: MouseEvent) => {
+                this.subtitlePointerPosition = { clientX: event.clientX, clientY: event.clientY };
                 showSubtitleContextOnHover(event, this.subtitles);
                 this.onMouseOver?.(event);
             },
             onMouseOut: (event: MouseEvent) => {
+                const related = event.relatedTarget;
+                const container = event.currentTarget;
+                if (!(related instanceof Node) || !(container instanceof Element) || !container.contains(related)) {
+                    this.subtitlePointerPosition = undefined;
+                }
                 hideSubtitleContextOnUnhover(event);
                 this.onMouseOut?.(event);
             },
@@ -551,6 +565,7 @@ export default class SubtitleController {
                     );
                     this._renderSubtitles(showingSubtitlesTop, OffsetAnchor.top);
                 }
+                this._showContextForPointer();
 
                 if (showOffset) {
                     this._appendSubtitlesHtml(this._buildTextHtml(this._formatOffset(offset)));
@@ -567,6 +582,20 @@ export default class SubtitleController {
             this._setSubtitlesHtml(this.topSubtitlesElementOverlay, this._buildSubtitlesHtml(subtitles));
         } else {
             this._setSubtitlesHtml(this.bottomSubtitlesElementOverlay, this._buildSubtitlesHtml(subtitles));
+        }
+    }
+
+    private _showContextForPointer() {
+        const position = this.subtitlePointerPosition;
+
+        if (!position) {
+            return;
+        }
+
+        const element = document.elementFromPoint(position.clientX, position.clientY);
+
+        if (element) {
+            addSubtitleContext(element, this.subtitles);
         }
     }
 

@@ -30,6 +30,7 @@ import {
 } from '@project/common/settings';
 import {
     arrayEquals,
+    addSubtitleContext,
     compareSubtitlesForDisplay,
     hideSubtitleContextOnUnhover,
     showSubtitleContextOnHover,
@@ -210,6 +211,7 @@ interface CachedShowingSubtitleProps {
     className?: string;
     onMouseOver: React.MouseEventHandler<HTMLDivElement>;
     onMouseOut: React.MouseEventHandler<HTMLDivElement>;
+    onElementAppended?: (element: HTMLElement) => void;
 }
 
 const CachedShowingSubtitle = React.memo(function CachedShowingSubtitle({
@@ -219,6 +221,7 @@ const CachedShowingSubtitle = React.memo(function CachedShowingSubtitle({
     className,
     onMouseOver,
     onMouseOut,
+    onElementAppended,
 }: CachedShowingSubtitleProps) {
     return (
         <div
@@ -234,7 +237,9 @@ const CachedShowingSubtitle = React.memo(function CachedShowingSubtitle({
                     domCache.return(ref.lastChild! as HTMLElement);
                 }
 
-                ref.appendChild(domCache.get(String(subtitle.index), () => renderHtml(subtitle)));
+                const appended = domCache.get(String(subtitle.index), () => renderHtml(subtitle));
+                ref.appendChild(appended);
+                onElementAppended?.(appended);
             }}
         />
     );
@@ -1739,8 +1744,38 @@ export default function VideoPlayer({
 
     const hoveredToken = useMemo(() => new HoveredToken(), []);
 
+    const subtitlePointerRef = useRef<{ clientX: number; clientY: number } | undefined>(undefined);
+    const subtitlesRef = useRef<IndexedSubtitleModel[]>([]);
+    subtitlesRef.current = subtitles;
+
+    const handleSubtitleElementAppended = useCallback((element: HTMLElement) => {
+        const pointer = subtitlePointerRef.current;
+
+        if (!pointer) {
+            return;
+        }
+
+        const rect = element.getBoundingClientRect();
+        const pointerInside =
+            pointer.clientX >= rect.left &&
+            pointer.clientX <= rect.right &&
+            pointer.clientY >= rect.top &&
+            pointer.clientY <= rect.bottom;
+
+        if (!pointerInside) {
+            return;
+        }
+
+        const mainSpan = element.querySelector('[data-index]');
+
+        if (mainSpan) {
+            addSubtitleContext(mainSpan, subtitlesRef.current);
+        }
+    }, []);
+
     const handleSubtitleMouseOver = useCallback(
         (e: React.MouseEvent) => {
+            subtitlePointerRef.current = { clientX: e.clientX, clientY: e.clientY };
             showSubtitleContextOnHover(e.nativeEvent, subtitles);
             if (miscSettings.pauseOnHoverMode !== PauseOnHoverMode.disabled && videoRef.current?.paused === false) {
                 playerChannel.pause();
@@ -1754,6 +1789,11 @@ export default function VideoPlayer({
     const handleSubtitleMouseOut = useCallback(
         (e: React.MouseEvent) => {
             hideSubtitleContextOnUnhover(e.nativeEvent);
+            const related = e.nativeEvent.relatedTarget;
+            const container = e.currentTarget;
+            if (!(related instanceof Node) || !(container instanceof Element) || !container.contains(related)) {
+                subtitlePointerRef.current = undefined;
+            }
             hoveredToken.handleMouseOut(e.nativeEvent);
         },
         [hoveredToken]
@@ -1843,6 +1883,7 @@ export default function VideoPlayer({
             renderHtml={getSubtitleHtml}
             onMouseOver={handleSubtitleMouseOver}
             onMouseOut={handleSubtitleMouseOut}
+            onElementAppended={handleSubtitleElementAppended}
         />
     );
 
