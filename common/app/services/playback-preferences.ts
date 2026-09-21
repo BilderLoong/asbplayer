@@ -8,7 +8,9 @@ const offsetKey = 'offset';
 const displaySubtitlesKey = 'displaySubtitles';
 const hideSubtitleListKey = 'hideSubtitleList';
 const subtitlePlayerWidthKey = 'subtitlePlayerWidth';
+const playbackRateKey = 'playbackRate';
 const defaultVolume = 100;
+const defaultPlaybackRate = 1;
 
 interface PlaybackPrefSettings {
     rememberSubtitleOffset: boolean;
@@ -110,5 +112,22 @@ export default class PlaybackPreferences {
 
     set subtitlePlayerWidth(width: number) {
         this._storage.set(subtitlePlayerWidthKey, String(width));
+    }
+
+    get playbackRate(): number {
+        const value = this._storage.get(playbackRateKey);
+
+        if (value === null) {
+            return defaultPlaybackRate;
+        }
+
+        const rate = Number(value);
+        return Number.isFinite(rate) && rate > 0 ? rate : defaultPlaybackRate;
+    }
+
+    set playbackRate(rate: number) {
+        if (Number.isFinite(rate) && rate > 0) {
+            this._storage.set(playbackRateKey, String(rate));
+        }
     }
 }
