@@ -315,14 +315,14 @@ const AnkiDialog = ({
     }
 
     const textForTimestampInterval = useCallback(
-        (timestampInterval: number[], track?: number) => {
+        (timestampInterval: number[], track: number = card.subtitle.track) => {
             return joinSubtitles(
                 card.surroundingSubtitles
                     .filter((s) => subtitleIntersectsTimeInterval(s, timestampInterval))
-                    .filter((s) => track === undefined || s.track === track)
+                    .filter((s) => s.track === track)
             );
         },
-        [card.surroundingSubtitles]
+        [card.surroundingSubtitles, card.subtitle.track]
     );
 
     const {
@@ -378,8 +378,8 @@ const AnkiDialog = ({
             timestampInterval === undefined
                 ? []
                 : card.surroundingSubtitles.filter((s) => subtitleIntersectsTimeInterval(s, timestampInterval));
-        setText(initialText ?? joinSubtitles(selectedSubtitles));
         const trackText = (track: number) => joinSubtitles(selectedSubtitles.filter((s) => s.track === track));
+        setText(initialText ?? trackText(card.subtitle.track));
         setTrack1(trackText(0));
         setTrack2(trackText(1));
         setTrack3(trackText(2));

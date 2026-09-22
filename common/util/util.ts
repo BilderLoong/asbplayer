@@ -159,9 +159,15 @@ export function surroundingSubtitles(
     return subtitles.slice(startIndex, endIndex + 1);
 }
 
-export function buildSubtitleContextText(currentSubtitleIndex: number, subtitles: IndexedSubtitleModel[]) {
-    const beforeSubtitles = subtitles.slice(0, currentSubtitleIndex);
-    const afterSubtitles = subtitles.slice(currentSubtitleIndex + 1);
+export function buildSubtitleContextText(
+    currentSubtitleIndex: number,
+    subtitles: IndexedSubtitleModel[]
+): { before: string; after: string } {
+    const current = subtitles[currentSubtitleIndex];
+    if (!current) return { before: '', after: '' };
+
+    const beforeSubtitles = subtitles.slice(0, currentSubtitleIndex).filter((s) => s.track === current.track);
+    const afterSubtitles = subtitles.slice(currentSubtitleIndex + 1).filter((s) => s.track === current.track);
 
     const fullBeforeText = beforeSubtitles.map((s) => s.text.trim()).join(' ');
     const fullAfterText = afterSubtitles.map((s) => s.text.trim()).join(' ');
@@ -201,11 +207,11 @@ export function addSubtitleContext(target: Element, subtitles: IndexedSubtitleMo
     const { before, after } = buildSubtitleContextText(index, subtitles);
 
     if (before) {
-        indexSpan.insertBefore(subtitleContextSpan(before), indexSpan.firstChild);
+        indexSpan.insertBefore(subtitleContextSpan(before + ' '), indexSpan.firstChild);
     }
 
     if (after) {
-        indexSpan.appendChild(subtitleContextSpan(after));
+        indexSpan.appendChild(subtitleContextSpan(' ' + after));
     }
 }
 
@@ -427,16 +433,18 @@ export function joinSubtitles(subtitles: SubtitleModel[]) {
         .join('\n');
 }
 
-export function extractText(subtitle: SubtitleModel, surroundingSubtitles: SubtitleModel[], track?: number) {
+export function extractText(
+    subtitle: SubtitleModel,
+    surroundingSubtitles: SubtitleModel[],
+    track: number = subtitle.track
+): string {
     if (surroundingSubtitles.length === 0) {
-        return subtitle.text;
+        return subtitle.track === track ? subtitle.text : '';
     }
 
     const interval = [subtitle.start, subtitle.end];
     return joinSubtitles(
-        surroundingSubtitles
-            .filter((s) => subtitleIntersectsTimeInterval(s, interval))
-            .filter((s) => track === undefined || s.track === track)
+        surroundingSubtitles.filter((s) => subtitleIntersectsTimeInterval(s, interval)).filter((s) => s.track === track)
     );
 }
 

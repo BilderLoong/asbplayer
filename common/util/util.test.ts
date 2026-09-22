@@ -2,6 +2,7 @@ import {
     areTokenizationsEqual,
     arrayEquals,
     AsyncSemaphore,
+    addSubtitleContext,
     buildSubtitleTracks,
     compareSubtitlesForDisplay,
     hideSubtitleContextOnUnhover,
@@ -419,6 +420,14 @@ describe('joinSubtitles', () => {
 });
 
 describe('extractText', () => {
+    it('defaults to the current track while keeping explicit translation extraction available', () => {
+        const french = subtitle('Bonjour.', 0, 1000, 0);
+        const english = subtitle('Hello.', 0, 1000, 1);
+        expect(extractText(french, [french, english])).toBe('Bonjour.');
+        expect(extractText(english, [french, english])).toBe('Hello.');
+        expect(extractText(french, [french, english], 1)).toBe('Hello.');
+        expect(extractText(french, [], 1)).toBe('');
+    });
     it('returns the subtitle text when surrounding subtitles are empty', () => {
         const current = subtitle('current', 10, 20);
         expect(extractText(current, [])).toBe('current');
@@ -971,6 +980,26 @@ it('sorts subtitles by track first, regardless of source index', () => {
     ]);
 });
 
+it.each([0, 1])('keeps scanned context on track %i with spaces between cues', (track) => {
+    const subs = [
+        subtitle('Je sais pas.', 257090, 258170, 0, 0),
+        subtitle("I don't know.", 257090, 258170, 1, 1),
+        subtitle('On attend des nouvelles du notaire', 258450, 260010, 0, 2),
+        subtitle("We're waiting to hear from the lawyer to know what Samuel's wishes were.", 258850, 262805, 1, 3),
+        subtitle("pour savoir ce que Samuel a prévu pour l'agence.", 260090, 262890, 0, 4),
+    ];
+    const current = subs[track === 0 ? 2 : 3];
+    const span = document.createElement('span');
+    span.dataset.index = String(current.index);
+    span.textContent = current.text;
+    addSubtitleContext(span, subs);
+    expect(span.textContent).toBe(
+        track === 0
+            ? "Je sais pas. On attend des nouvelles du notaire pour savoir ce que Samuel a prévu pour l'agence."
+            : "I don't know. We're waiting to hear from the lawyer to know what Samuel's wishes were."
+    );
+});
+
 it('adds hidden context spans around the hovered subtitle', () => {
     const subs = [
         subtitle('Before text', 0, 1000, 0, 0),
@@ -992,8 +1021,8 @@ it('adds hidden context spans around the hovered subtitle', () => {
 
     const spans = mainSpan.querySelectorAll('span.asbplayer-subtitle-context');
     expect(spans.length).toBe(2);
-    expect(spans[0].textContent).toBe('Before text');
-    expect(spans[1].textContent).toBe('After text');
+    expect(spans[0].textContent).toBe('Before text ');
+    expect(spans[1].textContent).toBe(' After text');
     expect((spans[0] as HTMLElement).style.display).toBe('inline-block');
     expect(mainSpan.firstElementChild).toBe(spans[0]);
     expect(mainSpan.lastElementChild).toBe(spans[1]);
