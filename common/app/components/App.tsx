@@ -71,6 +71,7 @@ import {
     resolveFiles,
     FileSystemFileHandleWithId,
 } from '../../file-system-access';
+import { videoPositionKey } from './video-position-restore';
 import { isMobile } from 'react-device-detect';
 import { GlobalState } from '../../global-state';
 import mp3WorkerFactory from '../../audio-clip/mp3-encoder-worker.ts?worker';
@@ -426,8 +427,7 @@ function App({
     const {
         canRestoreLastSession: canRestoreLastFileSession,
         saveSession: saveFileSession,
-        fetchSession: fetchFileSession,
-        clearSession: clearFileSession,
+        getPreloadedSessionRecord: getPreloadedFileSessionRecord,
         saveBufferedHandlesToSession: saveBufferedHandlesToFileSession,
         promoteBufferedHandlesInSession: promoteBufferedHandlesInFileSession,
         clearBufferedHandlesInSession: clearBufferedHandlesInFileSession,
@@ -1124,32 +1124,36 @@ function App({
 
     const handleRestoreLastSession = useCallback(async () => {
         try {
-            const record = await fetchFileSession();
+            const record = getPreloadedFileSessionRecord();
             if (!record) return;
 
             const allHandles = [...(record.videoHandle ? [record.videoHandle] : []), ...record.subtitleHandles];
-
+            // Start all permission requests in the click, before any asynchronous file work.
             const { granted, denied } = await requestPermissions(allHandles);
             if (denied.length > 0) {
-                handleError(t('error.restoreSessionFailed'));
+                handleError(`${t('error.restoreSessionFailed')} (${denied.map((h) => h.handle.name).join(', ')})`);
                 return;
             }
 
             const { files, errors } = await resolveFiles(granted);
             if (errors.length > 0) {
-                handleError(t('error.restoreSessionFailed'));
-                await clearFileSession();
+                handleError(`${t('error.restoreSessionFailed')} (${errors.map((h) => h.handle.name).join(', ')})`);
                 return;
             }
 
-            if (!handleFiles({ files })) {
-                await clearFileSession();
+            const video = files.find((file) => file.id === record.videoHandle?.id)?.file;
+            if (video) {
+                playbackPreferences.migrateVideoPosition(
+                    videoPositionKey(video.name, video.size, video.lastModified),
+                    video.name
+                );
             }
+            handleFiles({ files });
         } catch (e) {
             console.error('Failed to restore last session:', e);
             handleError(e);
         }
-    }, [fetchFileSession, clearFileSession, handleFiles, handleError, t]);
+    }, [getPreloadedFileSessionRecord, handleFiles, handleError, playbackPreferences, t]);
 
     const handleDirectory = useCallback(
         async (items: DataTransferItemList) => {

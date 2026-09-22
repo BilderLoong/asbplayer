@@ -45,7 +45,12 @@ import {
 
 export default class PlayerChannel {
     private channel?: BroadcastChannel;
-    private readyCallbacks: ((duration: number, videoFileName?: string) => void)[];
+    private readyCallbacks: ((
+        duration: number,
+        videoFileName?: string,
+        videoFileSize?: number,
+        videoFileLastModified?: number
+    ) => void)[];
     private playCallbacks: (() => void)[];
     private pauseCallbacks: (() => void)[];
     private currentTimeCallbacks: ((currentTime: number) => void)[];
@@ -109,7 +114,12 @@ export default class PlayerChannel {
                     const readyMessage = event.data as ReadyToVideoMessage;
 
                     for (const callback of this.readyCallbacks) {
-                        callback(readyMessage.duration, readyMessage.videoFileName);
+                        callback(
+                            readyMessage.duration,
+                            readyMessage.videoFileName,
+                            readyMessage.videoFileSize,
+                            readyMessage.videoFileLastModified
+                        );
                     }
                     break;
                 }
@@ -302,7 +312,14 @@ export default class PlayerChannel {
         return () => this._remove(callback, this.closeCallbacks);
     }
 
-    onReady(callback: (duration: number, videoFileName?: string) => void) {
+    onReady(
+        callback: (
+            duration: number,
+            videoFileName?: string,
+            videoFileSize?: number,
+            videoFileLastModified?: number
+        ) => void
+    ) {
         this.readyCallbacks.push(callback);
         return () => this._remove(callback, this.readyCallbacks);
     }
@@ -391,13 +408,14 @@ export default class PlayerChannel {
         paused: boolean,
         playbackRate: number,
         audioTracks: AudioTrackModel[] | undefined,
-        selectedAudioTrack: string | undefined
+        selectedAudioTrack: string | undefined,
+        currentTime: number = 0
     ) {
         const message: ReadyFromVideoMessage = {
             command: 'ready',
             duration: duration,
             paused: paused,
-            currentTime: 0,
+            currentTime: currentTime,
             audioTracks: audioTracks,
             selectedAudioTrack: selectedAudioTrack,
             playbackRate: playbackRate,

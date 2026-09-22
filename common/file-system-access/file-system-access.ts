@@ -12,53 +12,46 @@ export function supportsFileSystemAccess(): boolean {
     return typeof window !== 'undefined' && 'showOpenFilePicker' in window;
 }
 
+// Start every request before awaiting responses: later prompts still need the click's activation.
 export async function requestPermissions(
     handles: FileSystemFileHandleWithId[]
 ): Promise<{ granted: FileSystemFileHandleWithId[]; denied: FileSystemFileHandleWithId[] }> {
-    const granted: FileSystemFileHandleWithId[] = [];
-    const denied: FileSystemFileHandleWithId[] = [];
-
-    for (const handle of handles) {
-        try {
-            const state = await (handle.handle as any).queryPermission?.({ mode: 'read' });
-            if (state === 'granted') {
-                granted.push(handle);
-                continue;
+    const classified = await Promise.all(
+        handles.map(async (handle) => {
+            const nativeHandle = handle.handle;
+            try {
+                if (!('requestPermission' in nativeHandle) || typeof nativeHandle.requestPermission !== 'function') {
+                    return { handle, granted: false };
+                }
+                const state: unknown = await nativeHandle.requestPermission({ mode: 'read' });
+                return { handle, granted: state === 'granted' };
+            } catch {
+                return { handle, granted: false };
             }
-        } catch {
-            // queryPermission not supported, fall through to requestPermission
-        }
-
-        try {
-            const state = await (handle.handle as any).requestPermission?.({ mode: 'read' });
-            if (state === 'granted') {
-                granted.push(handle);
-            } else {
-                denied.push(handle);
-            }
-        } catch {
-            denied.push(handle);
-        }
-    }
-
-    return { granted, denied };
+        })
+    );
+    return {
+        granted: classified.filter(({ granted }) => granted).map(({ handle }) => handle),
+        denied: classified.filter(({ granted }) => !granted).map(({ handle }) => handle),
+    };
 }
 
 export async function resolveFiles(
     handles: FileSystemFileHandleWithId[]
 ): Promise<{ files: FileWithId[]; errors: FileSystemFileHandleWithId[] }> {
-    const files: FileWithId[] = [];
-    const errors: FileSystemFileHandleWithId[] = [];
-
-    for (const handle of handles) {
-        try {
-            files.push({ id: handle.id, file: await handle.handle.getFile() });
-        } catch {
-            errors.push(handle);
-        }
-    }
-
-    return { files, errors };
+    const settled = await Promise.all(
+        handles.map(async (handle): Promise<{ file: FileWithId } | { error: FileSystemFileHandleWithId }> => {
+            try {
+                return { file: { id: handle.id, file: await handle.handle.getFile() } };
+            } catch {
+                return { error: handle };
+            }
+        })
+    );
+    return {
+        files: settled.flatMap((result) => ('file' in result ? [result.file] : [])),
+        errors: settled.flatMap((result) => ('error' in result ? [result.error] : [])),
+    };
 }
 
 export async function showFilePicker(extensions: {

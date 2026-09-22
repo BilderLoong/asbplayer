@@ -255,6 +255,7 @@ const Player = React.memo(function Player({
     const [selectedAudioTrack, setSelectedAudioTrack] = useState<string>();
     const [channelId, setChannelId] = useState<string>();
     const [channel, setChannel] = useState<VideoChannel>();
+    const channelSourceRef = useRef<{ channel: VideoChannel; file: File } | undefined>(undefined);
     const channelRef = useRef<VideoChannel>(undefined);
     channelRef.current = channel;
     const playbackPreferencesRef = useRef<PlaybackPreferences>(undefined);
@@ -441,6 +442,7 @@ const Player = React.memo(function Player({
         if (videoFile) {
             const channelId = uuidv4();
             channel = new VideoChannel(new BroadcastChannelVideoProtocol(channelId));
+            channelSourceRef.current = { channel, file: videoFile.file };
             setChannelId(channelId);
             onLoaded([videoFile.file]);
         } else {
@@ -715,7 +717,16 @@ const Player = React.memo(function Player({
     useEffect(
         () =>
             channel?.onReady(() => {
-                return channel?.ready(trackLength(channel, subtitles), videoFile?.file?.name);
+                const source = channelSourceRef.current;
+                // A replacement file can render before its channel has been installed.
+                // Never send its identity to the previous video's frame.
+                const videoFileObject = source?.channel === channel ? source?.file : undefined;
+                return channel?.ready(
+                    trackLength(channel, subtitles),
+                    videoFileObject?.name,
+                    videoFileObject?.size,
+                    videoFileObject?.lastModified
+                );
             }),
         [channel, subtitles, videoFile]
     );

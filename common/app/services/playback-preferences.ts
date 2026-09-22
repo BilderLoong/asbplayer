@@ -28,6 +28,33 @@ interface VideoPositionEntry {
     seq: number;
 }
 
+function parseVideoPositionEntry(entry: unknown): VideoPositionEntry | undefined {
+    if (entry === null || typeof entry !== 'object') {
+        return undefined;
+    }
+
+    if (
+        !('position' in entry) ||
+        typeof entry.position !== 'number' ||
+        !Number.isFinite(entry.position) ||
+        entry.position < 0
+    ) {
+        return undefined;
+    }
+
+    return {
+        position: entry.position,
+        timestamp:
+            'timestamp' in entry && typeof entry.timestamp === 'number' && Number.isFinite(entry.timestamp)
+                ? entry.timestamp
+                : 0,
+        seq:
+            'seq' in entry && typeof entry.seq === 'number' && Number.isSafeInteger(entry.seq) && entry.seq >= 0
+                ? entry.seq
+                : 0,
+    };
+}
+
 export default class PlaybackPreferences {
     private readonly _settings: PlaybackPrefSettings;
     private readonly _storage = new CachedLocalStorage();
@@ -145,36 +172,54 @@ export default class PlaybackPreferences {
         }
 
         const entry = this._videoPositions()[videoKey];
-        return typeof entry?.position === 'number' && Number.isFinite(entry.position) ? entry.position : undefined;
+        return entry?.position;
     }
 
     setVideoPosition(videoKey: string | undefined, position: number): void {
-        if (!videoKey || !Number.isFinite(position) || position <= 0) {
+        if (!videoKey || !Number.isFinite(position) || position < 0) {
             return;
         }
 
         const positions = this._videoPositions();
-        let maxSeq = 0;
-        for (const entry of Object.values(positions)) {
-            if (typeof entry?.seq === 'number' && entry.seq > maxSeq) {
-                maxSeq = entry.seq;
-            }
-        }
-        positions[videoKey] = { position, timestamp: Date.now(), seq: maxSeq + 1 };
-        const entries = Object.entries(positions).sort((a, b) => (b[1].seq ?? 0) - (a[1].seq ?? 0));
+        const maxSeq = Math.max(0, ...Object.values(positions).map((entry) => entry.seq));
+        const updated = { ...positions, [videoKey]: { position, timestamp: Date.now(), seq: maxSeq + 1 } };
+        const entries = Object.entries(updated).sort((a, b) => b[1].seq - a[1].seq);
         this._storage.set(videoPositionsKey, JSON.stringify(Object.fromEntries(entries.slice(0, maxVideoPositions))));
     }
 
+    // Only call for the video resolved from the saved session, never for an arbitrary new file.
+    migrateVideoPosition(videoKey: string, legacyName: string): void {
+        const positions = this._videoPositions();
+        const legacy = positions[legacyName];
+        if (legacy === undefined) {
+            return;
+        }
+
+        const remaining = Object.fromEntries(Object.entries(positions).filter(([key]) => key !== legacyName));
+        const migrated = { ...remaining, [videoKey]: positions[videoKey] ?? legacy };
+        this._storage.set(videoPositionsKey, JSON.stringify(migrated));
+    }
+
     private _videoPositions(): Record<string, VideoPositionEntry> {
-        const value = this._storage.get(videoPositionsKey);
+        // Other player frames can save positions between reads.
+        const value = localStorage.getItem(videoPositionsKey);
 
         if (value === null) {
             return {};
         }
 
         try {
-            const parsed = JSON.parse(value);
-            return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+            const parsed: unknown = JSON.parse(value);
+            if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+                return {};
+            }
+
+            return Object.fromEntries(
+                Object.entries(parsed).flatMap((keyAndEntry): Array<[string, VideoPositionEntry]> => {
+                    const entry = parseVideoPositionEntry(keyAndEntry[1]);
+                    return entry ? [[keyAndEntry[0], entry]] : [];
+                })
+            );
         } catch {
             return {};
         }

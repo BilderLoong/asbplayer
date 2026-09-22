@@ -461,8 +461,14 @@ export default class VideoChannel {
         return () => this._remove(callback, this.cardExportedDialogCallbacks);
     }
 
-    ready(duration: number, videoFileName?: string) {
-        const message: ReadyToVideoMessage = { command: 'ready', duration, videoFileName };
+    ready(duration: number, videoFileName?: string, videoFileSize?: number, videoFileLastModified?: number) {
+        const message: ReadyToVideoMessage = {
+            command: 'ready',
+            duration,
+            videoFileName,
+            videoFileSize,
+            videoFileLastModified,
+        };
         this.protocol.postMessage(message);
     }
 

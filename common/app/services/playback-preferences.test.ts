@@ -20,6 +20,41 @@ beforeEach(() => {
 });
 
 describe('PlaybackPreferences', () => {
+    it('reads fresh positions across player instances without discarding another video', () => {
+        const first = new PlaybackPreferences(makeSettings(), makeExtension() as any);
+        const second = new PlaybackPreferences(makeSettings(), makeExtension() as any);
+        expect(first.getVideoPosition('a')).toBeUndefined();
+        second.setVideoPosition('a', 34);
+        expect(first.getVideoPosition('a')).toBe(34);
+        first.setVideoPosition('b', 56);
+        expect(second.getVideoPosition('b')).toBe(56);
+        expect(second.getVideoPosition('a')).toBe(34);
+    });
+
+    it('moves legacy positions only to the explicitly restored session video', () => {
+        const preferences = new PlaybackPreferences(makeSettings(), makeExtension() as any);
+        preferences.setVideoPosition('movie.mp4', 34);
+        preferences.migrateVideoPosition('identity-a', 'movie.mp4');
+        preferences.migrateVideoPosition('identity-b', 'movie.mp4');
+        expect(preferences.getVideoPosition('identity-a')).toBe(34);
+        expect(preferences.getVideoPosition('movie.mp4')).toBeUndefined();
+        expect(preferences.getVideoPosition('identity-b')).toBeUndefined();
+        preferences.setVideoPosition('movie.mp4', 12);
+        preferences.migrateVideoPosition('identity-a', 'movie.mp4');
+        expect(preferences.getVideoPosition('identity-a')).toBe(34);
+    });
+
+    it('rejects negative saved positions and malformed ordering data', () => {
+        localStorage.setItem(
+            'videoPositions',
+            JSON.stringify({ bad: { position: -1 }, good: { position: 34, seq: -2 } })
+        );
+        const preferences = new PlaybackPreferences(makeSettings(), makeExtension() as any);
+        expect(preferences.getVideoPosition('bad')).toBeUndefined();
+        expect(preferences.getVideoPosition('good')).toBe(34);
+        preferences.setVideoPosition('next', 12);
+        expect(preferences.getVideoPosition('next')).toBe(12);
+    });
     it('uses user-facing defaults when storage is empty', () => {
         const preferences = new PlaybackPreferences(makeSettings(), makeExtension() as any);
 
@@ -86,6 +121,8 @@ describe('PlaybackPreferences', () => {
         expect(preferences.getVideoPosition('movie.mkv')).toBeUndefined();
         preferences.setVideoPosition('movie.mkv', 123.5);
         expect(preferences.getVideoPosition('movie.mkv')).toBe(123.5);
+        preferences.setVideoPosition('movie.mkv', 0);
+        expect(preferences.getVideoPosition('movie.mkv')).toBe(0);
         expect(preferences.getVideoPosition(undefined)).toBeUndefined();
     });
 
@@ -107,6 +144,20 @@ describe('PlaybackPreferences', () => {
         const preferences = new PlaybackPreferences(makeSettings(), makeExtension() as any);
 
         expect(preferences.getVideoPosition('movie.mkv')).toBeUndefined();
+    });
+
+    it('ignores malformed position entries without crashing', () => {
+        localStorage.setItem('videoPositions', JSON.stringify({ 'movie.mkv': { position: '12' }, 'bad.mkv': 'nope' }));
+        const preferences = new PlaybackPreferences(makeSettings(), makeExtension() as any);
+
+        expect(preferences.getVideoPosition('movie.mkv')).toBeUndefined();
+        expect(preferences.getVideoPosition('bad.mkv')).toBeUndefined();
+
+        preferences.setVideoPosition('movie.mkv', 5);
+        expect(preferences.getVideoPosition('movie.mkv')).toBe(5);
+        expect(JSON.parse(localStorage.getItem('videoPositions')!)).toEqual({
+            'movie.mkv': expect.objectContaining({ position: 5 }),
+        });
     });
 
     it('ignores stored offsets when remembering is disabled', () => {

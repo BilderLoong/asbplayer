@@ -70,6 +70,7 @@ import { useFullscreen } from '../hooks/use-fullscreen';
 import MobileVideoOverlay from '@project/common/components/MobileVideoOverlay';
 import BlurOverlay from './BlurOverlay';
 import { CachedLocalStorage } from '../services/cached-local-storage';
+import { nextRestoreStep, RestorePhase, videoPositionKey } from './video-position-restore';
 import useLastScrollableControlType from '../../hooks/use-last-scrollable-control-type';
 import { type Theme } from '@mui/material/styles';
 import { shouldAutoPauseAtSubtitleEnd, shouldAutoPauseAtSubtitleStart } from '../services/playback-mode-effects';
@@ -145,7 +146,14 @@ function notifyReady(
 
     setAudioTracks(tracks);
     setSelectedAudioTrack(selectedTrack);
-    playerChannel.ready(element.duration, element.paused, element.playbackRate, tracks, selectedTrack);
+    playerChannel.ready(
+        element.duration,
+        element.paused,
+        element.playbackRate,
+        tracks,
+        selectedTrack,
+        element.currentTime
+    );
 }
 
 function errorMessage(element: HTMLVideoElement) {
@@ -402,9 +410,13 @@ export default function VideoPlayer({
     const [subtitleSettings, setSubtitleSettings] = useState<SubtitleSettings>(settings);
     const [ankiSettings, setAnkiSettings] = useState<AnkiSettings>(settings);
     const playbackPreferences = usePlaybackPreferences({ ...miscSettings, ...subtitleSettings }, extension);
-    const videoFileNameRef = useRef<string | undefined>(undefined);
-    videoFileNameRef.current = videoFileName;
     const lastPositionSaveTimeRef = useRef<number>(0);
+    // Identity of the loaded video for position storage; keeps the display name separate.
+    const videoPositionKeyRef = useRef<string | undefined>(undefined);
+    // Restore decision lifecycle for the current load. While a decision is
+    // pending, position saving is blocked so load events cannot overwrite the
+    // stored position before the seek is applied.
+    const restorePhaseRef = useRef<RestorePhase>('pending');
     const [displaySubtitles, setDisplaySubtitles] = useState(playbackPreferences.displaySubtitles);
     const [disabledSubtitleTracks, setDisabledSubtitleTracks] = useState<{ [index: number]: boolean }>({});
     const [playModes, setPlayModes] = useState<Set<PlayMode>>(new Set([PlayMode.normal]));
@@ -513,8 +525,11 @@ export default function VideoPlayer({
         if (!playModesRef.current.has(PlayMode.fastForward)) {
             playbackPreferences.playbackRate = video.playbackRate;
         }
-        if (videoFileNameRef.current !== undefined) {
-            playbackPreferences.setVideoPosition(videoFileNameRef.current, video.currentTime);
+        if (restorePhaseRef.current === 'decided' && !video.seeking) {
+            const key = videoPositionKeyRef.current;
+            if (key !== undefined) {
+                playbackPreferences.setVideoPosition(key, video.currentTime);
+            }
         }
         playerChannel.currentTime(video.currentTime, false);
         forceRender({});
@@ -560,9 +575,15 @@ export default function VideoPlayer({
                 videoElement.ontimeupdate = () => {
                     clock.setTime(element.currentTime * 1000);
                     const now = Date.now();
-                    if (now - lastPositionSaveTimeRef.current >= 5000 && videoFileNameRef.current !== undefined) {
+                    const key = videoPositionKeyRef.current;
+                    if (
+                        now - lastPositionSaveTimeRef.current >= 5000 &&
+                        key !== undefined &&
+                        restorePhaseRef.current === 'decided' &&
+                        !element.seeking
+                    ) {
                         lastPositionSaveTimeRef.current = now;
-                        playbackPreferences.setVideoPosition(videoFileNameRef.current, element.currentTime);
+                        playbackPreferences.setVideoPosition(key, element.currentTime);
                     }
                 };
                 videoElement.onerror = () => onErrorRef.current?.(errorMessage(element));
@@ -583,8 +604,9 @@ export default function VideoPlayer({
     useEffect(() => {
         const savePosition = () => {
             const video = videoRef.current;
-            if (video && videoFileNameRef.current !== undefined) {
-                playbackPreferences.setVideoPosition(videoFileNameRef.current, video.currentTime);
+            const key = videoPositionKeyRef.current;
+            if (video && key !== undefined && restorePhaseRef.current === 'decided') {
+                playbackPreferences.setVideoPosition(key, video.currentTime);
             }
         };
 
@@ -662,24 +684,36 @@ export default function VideoPlayer({
     );
 
     useEffect(() => {
-        playerChannel.onReady((duration, videoFileName) => {
+        playerChannel.onReady((duration, videoFileName, videoFileSize, videoFileLastModified) => {
             setLength(duration);
             setVideoFileName(videoFileName);
-            const storedPosition = playbackPreferences.getVideoPosition(videoFileName);
             const video = videoRef.current;
-            if (
-                storedPosition !== undefined &&
-                storedPosition > 1 &&
-                video !== undefined &&
-                Number.isFinite(duration) &&
-                duration > 0
-            ) {
-                const clamped = Math.min(storedPosition, duration - 5);
-                if (clamped > 0) {
-                    const actual = seekWithNudge(video, clamped);
-                    clock.stop();
-                    clock.setTime(actual * 1000);
-                }
+            if (videoFileName === undefined || videoFileSize === undefined || videoFileLastModified === undefined) {
+                return;
+            }
+
+            const identityKey = videoPositionKey(videoFileName, videoFileSize, videoFileLastModified);
+            if (identityKey !== videoPositionKeyRef.current) {
+                videoPositionKeyRef.current = identityKey;
+                restorePhaseRef.current = 'pending';
+            }
+            const storedPosition = playbackPreferences.getVideoPosition(identityKey);
+            const durationSeconds =
+                video !== undefined && Number.isFinite(video.duration) && video.duration > 0
+                    ? video.duration
+                    : undefined;
+            const step = nextRestoreStep(restorePhaseRef.current, {
+                storedPosition,
+                metadataReady: video !== undefined && video.readyState >= 1 && durationSeconds !== undefined,
+                durationSeconds,
+            });
+            restorePhaseRef.current = step.phase;
+            if (step.seekTo !== undefined && video !== undefined) {
+                video.pause();
+                const actual = seekWithNudge(video, step.seekTo);
+                clock.stop();
+                clock.setTime(actual * 1000);
+                playerChannel.currentTime(actual, false);
             }
         });
 

@@ -365,6 +365,8 @@ export interface ReadyToVideoMessage extends Message {
     readonly command: 'ready';
     readonly duration: number;
     readonly videoFileName?: string;
+    readonly videoFileSize?: number;
+    readonly videoFileLastModified?: number;
 }
 
 export interface PlayFromVideoMessage extends Message {

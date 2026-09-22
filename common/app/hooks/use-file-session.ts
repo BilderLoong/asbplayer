@@ -1,3 +1,4 @@
+import { liveQuery } from 'dexie';
 import { useCallback, useEffect, useState } from 'react';
 import {
     FileSessionRecord,
@@ -16,16 +17,20 @@ const getRepository = () => {
 
 export const useFileSession = () => {
     const fileSessionRepository = getRepository();
-    const [canRestoreLastSession, setCanRestoreLastSession] = useState<boolean>(false);
+    const [sessionRecord, setSessionRecord] = useState<FileSessionRecord>();
 
     useEffect(() => {
         if (!fileSessionRepository) return;
-        void fileSessionRepository.fetch().then((record) => {
-            if (record && (record.videoHandle || record.subtitleHandles.length > 0)) {
-                setCanRestoreLastSession(true);
-            }
+        // Keep the record ready before the click, including changes from other player frames.
+        const subscription = liveQuery(() => fileSessionRepository.fetch()).subscribe({
+            next: setSessionRecord,
+            error: (error: unknown) => console.error('Failed to load file session:', error),
         });
+        return () => subscription.unsubscribe();
     }, [fileSessionRepository]);
+
+    const getPreloadedSessionRecord = useCallback(() => sessionRecord, [sessionRecord]);
+    const canRestoreLastSession = Boolean(sessionRecord?.videoHandle || sessionRecord?.subtitleHandles.length);
 
     const saveSession = useCallback(
         async ({ videoHandle, subtitleHandles }: Omit<FileSessionRecord, 'id' | 'timestamp'>) => {
@@ -36,17 +41,9 @@ export const useFileSession = () => {
             }
 
             await fileSessionRepository.merge({ videoHandle, subtitleHandles });
-            setCanRestoreLastSession(true);
         },
         [fileSessionRepository]
     );
-
-    const fetchSession = useCallback(() => fileSessionRepository?.fetch(), [fileSessionRepository]);
-
-    const clearSession = useCallback(async () => {
-        await fileSessionRepository?.clear();
-        setCanRestoreLastSession(false);
-    }, [fileSessionRepository]);
 
     const saveBufferedHandlesToSession = useCallback(
         async (bufferedSubtitleHandles: FileSystemFileHandleWithId[]) => {
@@ -57,6 +54,7 @@ export const useFileSession = () => {
         },
         [fileSessionRepository]
     );
+
     const promoteBufferedHandlesInSession = useCallback(
         async (ids: string[]) => {
             await fileSessionRepository?.promoteBuffered(ids);
@@ -69,7 +67,9 @@ export const useFileSession = () => {
     }, [fileSessionRepository]);
 
     useEffect(() => {
-        void fileSessionRepository?.clearBuffered();
+        if (!fileSessionRepository) return;
+
+        void fileSessionRepository.clearBuffered().catch(console.error);
     }, [fileSessionRepository]);
 
     const retainHandlesInSession = useCallback(
@@ -81,9 +81,8 @@ export const useFileSession = () => {
 
     return {
         canRestoreLastSession,
+        getPreloadedSessionRecord,
         saveSession,
-        fetchSession,
-        clearSession,
         saveBufferedHandlesToSession,
         promoteBufferedHandlesInSession,
         clearBufferedHandlesInSession,
