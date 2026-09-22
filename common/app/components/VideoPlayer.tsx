@@ -410,6 +410,9 @@ export default function VideoPlayer({
     const [subtitleSettings, setSubtitleSettings] = useState<SubtitleSettings>(settings);
     const [ankiSettings, setAnkiSettings] = useState<AnkiSettings>(settings);
     const playbackPreferences = usePlaybackPreferences({ ...miscSettings, ...subtitleSettings }, extension);
+    // Preference updates must not close the channel and tell the parent to unload the video.
+    const playbackPreferencesRef = useRef(playbackPreferences);
+    playbackPreferencesRef.current = playbackPreferences;
     const lastPositionSaveTimeRef = useRef<number>(0);
     // Identity of the loaded video for position storage; keeps the display name separate.
     const videoPositionKeyRef = useRef<string | undefined>(undefined);
@@ -697,7 +700,7 @@ export default function VideoPlayer({
                 videoPositionKeyRef.current = identityKey;
                 restorePhaseRef.current = 'pending';
             }
-            const storedPosition = playbackPreferences.getVideoPosition(identityKey);
+            const storedPosition = playbackPreferencesRef.current.getVideoPosition(identityKey);
             const durationSeconds =
                 video !== undefined && Number.isFinite(video.duration) && video.duration > 0
                     ? video.duration
@@ -829,7 +832,7 @@ export default function VideoPlayer({
 
         setPlayerChannelSubscribed(true);
         return () => playerChannel.close();
-    }, [clock, playbackPreferences, playerChannel, requestFullscreen, updateSubtitlesWithOffset, updatePlaybackRate]);
+    }, [clock, playerChannel, requestFullscreen, updateSubtitlesWithOffset, updatePlaybackRate]);
 
     const handlePlay = useCallback(() => {
         if (videoRef.current) {
