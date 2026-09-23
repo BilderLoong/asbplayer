@@ -1,17 +1,16 @@
 import { IndexedSubtitleModel, OffscreenDomCache } from '@project/common';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 
 export const useSubtitleDomCache = (
     subtitles: IndexedSubtitleModel[],
     render: (subtitle: IndexedSubtitleModel) => string
 ) => {
-    const [domCache, setDomCache] = useState<OffscreenDomCache>(new OffscreenDomCache());
+    // Callers must receive the replacement during this render, before effects
+    // refresh the window. A deferred state update can refill a retired cache.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- These dependencies are cache invalidation keys.
+    const domCache = useMemo(() => new OffscreenDomCache(), [subtitles, render]);
 
-    useEffect(() => {
-        const domCache = new OffscreenDomCache();
-        setDomCache(domCache);
-        return () => domCache.clear();
-    }, [subtitles, render]);
+    useEffect(() => () => domCache.clear(), [domCache]);
 
     const refreshSubtitleDomCacheForSubtitles = useCallback(
         (windowSubtitles: IndexedSubtitleModel[]) => {
